@@ -5,18 +5,21 @@ module Main where
 
 import           Data.Aeson             (ToJSON)
 import qualified Data.ByteString.Lazy   as B
-import           Data.Text.Encoding     as E
+import qualified Data.Text.Encoding     as E
 import qualified Data.Text.Lazy         as T
-import           Data.Text.Read         as R
+import qualified Data.Text.Read         as R
 import           Data.Time.Clock
 import           Database.SQLite.Simple
 import           GHC.Generics
 import           Web.Scotty
 import qualified Web.Scotty.Trans       as ST
 
+type SourceName = T.Text
+type SensorName = T.Text
+
 data Sensor = Sensor {
-  source :: T.Text
-  , name :: T.Text
+  source :: SourceName
+  , name :: SensorName
   } deriving (Eq, Show, Generic)
 
 instance ToJSON Sensor
@@ -24,8 +27,8 @@ instance FromRow Sensor where
   fromRow = Sensor <$> field <*> field
 
 data Reading = Reading {
-  sourceName   :: T.Text
-  , sensorName :: T.Text
+  sourceName   :: SourceName
+  , sensorName :: SensorName
   , timestamp  :: UTCTime
   , value      :: Double
   } deriving (Eq, Show, Generic)
@@ -41,19 +44,23 @@ parseData data' =
     (num, txt) <- R.double t
     return (num, T.fromStrict txt)
 
-insertReading :: Connection -> Reading -> IO ()
-insertReading conn (Reading source' sensor' value' timestamp') =
-  executeNamed conn "INSERT INTO reading (source, sensor, value, timestamp) \
-                    \VALUES (:source, :sensor, :value, :timestamp) "
-    [":source" := source', ":sensor" := sensor', ":value" := value', ":timestamp" := timestamp']
+insertReading :: Connection -> SourceName -> SensorName -> UTCTime -> Double -> IO ()
+insertReading conn source' sensor' timestamp' value' =
+  executeNamed conn "INSERT INTO reading (source, sensor, timestamp, value) \
+                    \VALUES (:source, :sensor, :timestamp, :value) "
+    [":source" := source'
+    , ":sensor" := sensor'
+    , ":value" := value'
+    , ":timestamp" := timestamp'
+    ]
 
-postToSensor :: Connection -> T.Text -> T.Text -> B.ByteString -> ActionM ()
-postToSensor conn source' sensor' data' = do
+postToSensor :: Connection -> SourceName -> SensorName -> B.ByteString -> ActionM ()
+postToSensor conn source' sensor' rawData = do
   time <- ST.liftAndCatchIO getCurrentTime
-  case parseData data' of
+  case parseData rawData of
     Left e        -> json e
     Right (d, "") ->
-      ST.liftAndCatchIO $ insertReading conn $ Reading source' sensor' time d
+      ST.liftAndCatchIO $ insertReading conn source' sensor' time d
     Right (_, _)  -> json ("Invalid number"::T.Text)
 
 getSources :: Connection -> IO [Sensor]
@@ -62,7 +69,7 @@ getSources conn =
 
 getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
 getReadings conn source' sensor' =
-  queryNamed conn "SELECT source, sensor, value, timestamp \
+  queryNamed conn "SELECT source, sensor, timestamp, value \
                   \FROM reading \
                   \WHERE source = :source AND sensor = :sensor"
   [":source" := source', ":sensor" := sensor']
@@ -80,8 +87,8 @@ routes conn = do
   post "/source/:name/:sensor" $ do
     source' <- param "name"
     sensor' <- param "sensor"
-    data' <- body
-    postToSensor conn source' sensor' data'
+    rawData <- body
+    postToSensor conn source' sensor' rawData
 
 tables :: [Query]
 tables = [
