@@ -3,11 +3,10 @@
 
 module Main where
 
-import           Data.Aeson             (ToJSON)
+import           Data.Aeson             (FromJSON, ToJSON, decode)
 import qualified Data.ByteString.Lazy   as B
-import qualified Data.Text.Encoding     as E
+import           Data.Maybe             (fromMaybe)
 import qualified Data.Text.Lazy         as T
-import qualified Data.Text.Read         as R
 import           Data.Time.Clock
 import           Database.SQLite.Simple
 import           GHC.Generics
@@ -27,41 +26,39 @@ instance FromRow Sensor where
   fromRow = Sensor <$> field <*> field
 
 data Reading = Reading {
-  sourceName   :: SourceName
-  , sensorName :: SensorName
-  , timestamp  :: UTCTime
-  , value      :: Double
+  sourceName     :: SourceName
+  , sensorName   :: SensorName
+  , timestamp    :: Maybe UTCTime
+  , receivedTime :: Maybe UTCTime
+  , value        :: Double
   } deriving (Eq, Show, Generic)
 
 instance ToJSON Reading
+instance FromJSON Reading
 instance FromRow Reading where
-  fromRow = Reading <$> field <*> field <*> field <*> field
+  fromRow = Reading <$> field <*> field <*> field <*> field <*> field
 
-parseData :: B.ByteString -> Either String (Double, T.Text)
-parseData data' =
-  let t = E.decodeUtf8 $ B.toStrict data'
-  in do
-    (num, txt) <- R.double t
-    return (num, T.fromStrict txt)
-
-insertReading :: Connection -> SourceName -> SensorName -> UTCTime -> Double -> IO ()
-insertReading conn source' sensor' timestamp' value' =
-  executeNamed conn "INSERT INTO reading (source, sensor, timestamp, value) \
-                    \VALUES (:source, :sensor, :timestamp, :value) "
+insertReading :: Connection -> Reading -> IO ()
+insertReading conn (Reading source' sensor' timestamp' receivedTime' value') =
+  executeNamed conn "INSERT INTO reading (source, sensor, timestamp, received_time, value) \
+                    \VALUES (:source, :sensor, :timestamp, :received_time, :value) "
     [":source" := source'
     , ":sensor" := sensor'
     , ":value" := value'
     , ":timestamp" := timestamp'
+    , ":received_time" := receivedTime'
     ]
 
-postToSensor :: Connection -> SourceName -> SensorName -> B.ByteString -> ActionM ()
-postToSensor conn source' sensor' rawData = do
+postToSensor :: Connection -> B.ByteString -> ActionM ()
+postToSensor conn rawData = do
   time <- ST.liftAndCatchIO getCurrentTime
-  case parseData rawData of
-    Left e        -> json e
-    Right (d, "") ->
-      ST.liftAndCatchIO $ insertReading conn source' sensor' time d
-    Right (_, _)  -> json ("Invalid number"::T.Text)
+  case decode rawData of
+    Nothing      -> raise "<p>Invalid JSON reading input!</p>"
+    Just reading -> ST.liftAndCatchIO $
+      insertReading conn $
+      reading { receivedTime = Just time
+              , timestamp = Just $ fromMaybe time $ timestamp reading
+              }
 
 getSources :: Connection -> IO [Sensor]
 getSources conn =
@@ -69,7 +66,7 @@ getSources conn =
 
 getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
 getReadings conn source' sensor' =
-  queryNamed conn "SELECT source, sensor, timestamp, value \
+  queryNamed conn "SELECT source, sensor, timestamp, received_time, value \
                   \FROM reading \
                   \WHERE source = :source AND sensor = :sensor"
   [":source" := source', ":sensor" := sensor']
@@ -79,26 +76,25 @@ routes conn = do
   get "/source" $ do
     sources <- ST.liftAndCatchIO $ getSources conn
     json sources
+  post "/source" $ do
+    rawData <- body
+    postToSensor conn rawData
   get "/source/:name/:sensor" $ do
     source' <- param "name"
     sensor' <- param "sensor"
     readings <- ST.liftAndCatchIO $ getReadings conn source' sensor'
     json readings
-  post "/source/:name/:sensor" $ do
-    source' <- param "name"
-    sensor' <- param "sensor"
-    rawData <- body
-    postToSensor conn source' sensor' rawData
 
 tables :: [Query]
 tables = [
   "CREATE TABLE IF NOT EXISTS \
   \sensor (source TEXT NOT NULL, name TEXT NOT NULL)"
-  , "CREATE TABLE IF NOT EXISTS \
-    \reading (source TEXT NOT NULL REFERENCES sensor(source), \
+  , "CREATE TABLE IF NOT EXISTS reading \
+    \(source TEXT NOT NULL REFERENCES sensor(source), \
     \sensor TEXT NOT NULL REFERENCES sensor(name), \
-    \value NUMBER NOT NULL, \
-    \timestamp TIMESTAMP NOT NULL)"
+    \timestamp TIMESTAMP NOT NULL, \
+    \received_time TIMESTAMP NOT NULL, \
+    \value NUMBER NOT NULL)"
   ]
 
 main :: IO ()
