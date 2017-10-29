@@ -68,7 +68,8 @@ getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
 getReadings conn source' sensor' =
   queryNamed conn "SELECT source, sensor, timestamp, received_time, value \
                   \FROM reading \
-                  \WHERE source = :source AND sensor = :sensor"
+                  \WHERE source = :source AND sensor = :sensor \
+                  \ORDER BY timestamp DESC"
   [":source" := source', ":sensor" := sensor']
 
 routes :: Connection -> ST.ScottyT T.Text IO ()
