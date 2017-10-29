@@ -62,7 +62,7 @@ postToSensor conn rawData = do
 
 getSources :: Connection -> IO [Sensor]
 getSources conn =
-  query_ conn "SELECT source, name FROM sensor"
+  query_ conn "SELECT DISTINCT source, sensor FROM reading"
 
 getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
 getReadings conn source' sensor' =
@@ -88,14 +88,12 @@ routes conn = do
 
 tables :: [Query]
 tables = [
-  "CREATE TABLE IF NOT EXISTS \
-  \sensor (source TEXT NOT NULL, name TEXT NOT NULL)"
-  , "CREATE TABLE IF NOT EXISTS reading \
-    \(source TEXT NOT NULL REFERENCES sensor(source), \
-    \sensor TEXT NOT NULL REFERENCES sensor(name), \
-    \timestamp TIMESTAMP NOT NULL, \
-    \received_time TIMESTAMP NOT NULL, \
-    \value NUMBER NOT NULL)"
+  "CREATE TABLE IF NOT EXISTS reading \
+  \(source TEXT NOT NULL REFERENCES sensor(source), \
+  \sensor TEXT NOT NULL REFERENCES sensor(name), \
+  \timestamp TIMESTAMP NOT NULL, \
+  \received_time TIMESTAMP NOT NULL, \
+  \value NUMBER NOT NULL)"
   ]
 
 main :: IO ()
