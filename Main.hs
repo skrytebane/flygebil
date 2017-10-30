@@ -3,8 +3,9 @@
 
 module Main where
 
-import           Data.Aeson             (FromJSON, ToJSON, decode)
+import           Data.Aeson             (FromJSON, ToJSON, eitherDecode)
 import qualified Data.ByteString.Lazy   as B
+import           Data.Char              (isAlphaNum, isAscii)
 import           Data.Maybe             (fromMaybe)
 import qualified Data.Text.Lazy         as T
 import           Data.Time.Clock
@@ -49,12 +50,23 @@ insertReading conn (Reading source' sensor' timestamp' receivedTime' value') =
     , ":received_time" := receivedTime'
     ]
 
+decodeReading :: B.ByteString -> Either String Reading
+decodeReading rawData = eitherDecode rawData >>= validateReading
+
+validateReading :: Reading -> Either String Reading
+validateReading r@(Reading source' sensor' _ _ _) =
+  if validIdentifier source' && validIdentifier sensor'
+  then Right r
+  else Left "Invalid identifiers"
+  where isAlphaAscii c = isAscii c && isAlphaNum c
+        validIdentifier = T.all isAlphaAscii
+
 postToSensor :: Connection -> B.ByteString -> ActionM ()
 postToSensor conn rawData = do
   time <- ST.liftAndCatchIO getCurrentTime
-  case decode rawData of
-    Nothing      -> raise "<p>Invalid JSON reading input!</p>"
-    Just reading -> ST.liftAndCatchIO $
+  case decodeReading rawData of
+    Left s      -> raise $ T.pack $ "<p>In reader parsing: " ++ s ++ ".</p>"
+    Right reading -> ST.liftAndCatchIO $
       insertReading conn $
       reading { receivedTime = Just time
               , timestamp = Just $ fromMaybe time $ timestamp reading
