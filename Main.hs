@@ -66,7 +66,7 @@ getSources conn =
 
 getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
 getReadings conn source' sensor' =
-  queryNamed conn "SELECT source, sensor, timestamp, received_time, value \
+  queryNamed conn "SELECT source, sensor, timestamp, received_time, CAST(value as FLOAT) \
                   \FROM reading \
                   \WHERE source = :source AND sensor = :sensor \
                   \ORDER BY timestamp DESC"
