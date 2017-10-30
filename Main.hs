@@ -97,7 +97,8 @@ tables = [
   ]
 
 main :: IO ()
-main = do
-  conn <- open "readings.db"
-  mapM_ (execute_ conn) tables
-  scotty 3000 $ routes conn
+main =
+  withConnection "readings.db"
+  (\conn -> do
+      mapM_ (execute_ conn) tables
+      scotty 3000 $ routes conn)
