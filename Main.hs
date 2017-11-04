@@ -3,8 +3,7 @@
 
 module Main where
 
-import           Data.Aeson             (FromJSON, ToJSON, eitherDecode)
-import qualified Data.ByteString.Lazy   as B
+import           Data.Aeson             (FromJSON, ToJSON)
 import           Data.Char              (isAlphaNum, isAscii)
 import           Data.Maybe             (fromMaybe)
 import qualified Data.Text.Lazy         as T
@@ -59,27 +58,32 @@ insertReading (Session conn) (Reading source' sensor' timestamp' receivedTime' v
     , ":received_time" := receivedTime'
     ]
 
-decodeReading :: B.ByteString -> Either String Reading
-decodeReading rawData = eitherDecode rawData >>= validateReading
-
-validateReading :: Reading -> Either String Reading
-validateReading r@(Reading source' sensor' _ _ _) =
+validateIdentifiers :: Reading -> Either T.Text Reading
+validateIdentifiers r@(Reading source' sensor' _ _ _) =
   if validIdentifier source' && validIdentifier sensor'
   then Right r
   else Left "Invalid identifiers"
   where isAlphaAscii c = isAscii c && isAlphaNum c
         validIdentifier = T.all isAlphaAscii
 
-postToSensor :: Session -> B.ByteString -> ActionM ()
-postToSensor conn rawData = do
+validateProvidedFields :: Reading -> Either T.Text Reading
+validateProvidedFields r@(Reading _ _ _ Nothing _) = Right r
+validateProvidedFields _ = Left "Don't set received time."
+
+validateReading :: Reading -> Either T.Text Reading
+validateReading reading =
+  validateIdentifiers reading >>
+  validateProvidedFields reading >>
+  return reading
+
+postToSensor :: Session -> Reading -> ActionM ()
+postToSensor conn reading = do
   time <- ST.liftAndCatchIO getCurrentTime
-  case decodeReading rawData of
-    Left s      -> raise $ T.pack $ "<p>In reader parsing: " ++ s ++ ".</p>"
-    Right reading -> ST.liftAndCatchIO $
-      insertReading conn $
-      reading { receivedTime = Just time
-              , timestamp = Just $ fromMaybe time $ timestamp reading
-              }
+  ST.liftAndCatchIO $
+    insertReading conn $
+    reading { receivedTime = Just time
+            , timestamp = Just $ fromMaybe time $ timestamp reading
+            }
 
 getSources :: Session -> IO [Sensor]
 getSources (Session conn) =
@@ -109,8 +113,10 @@ routes session = do
     json sources
   post "/source" $ do
     validateSecret
-    rawData <- body
-    postToSensor session rawData
+    data' <- jsonData
+    case validateReading data' of
+      Right r -> postToSensor session r
+      Left e  -> raise e
   get "/source/:name/:sensor" $ do
     validateSecret
     source' <- param "name"
