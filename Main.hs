@@ -14,6 +14,15 @@ import           GHC.Generics
 import           Web.Scotty
 import qualified Web.Scotty.Trans       as ST
 
+type Secret = T.Text
+
+apiKey :: Secret
+apiKey = "Jdzfu6CNmuHkL9KJL4dybQ19PUF9keSQqTbclZdK"
+
+newtype Session = Session {
+  connection :: Connection
+  }
+
 type SourceName = T.Text
 type SensorName = T.Text
 
@@ -39,8 +48,8 @@ instance FromJSON Reading
 instance FromRow Reading where
   fromRow = Reading <$> field <*> field <*> field <*> field <*> field
 
-insertReading :: Connection -> Reading -> IO ()
-insertReading conn (Reading source' sensor' timestamp' receivedTime' value') =
+insertReading :: Session -> Reading -> IO ()
+insertReading (Session conn) (Reading source' sensor' timestamp' receivedTime' value') =
   executeNamed conn "INSERT INTO reading (source, sensor, timestamp, received_time, value) \
                     \VALUES (:source, :sensor, :timestamp, :received_time, :value) "
     [":source" := source'
@@ -61,7 +70,7 @@ validateReading r@(Reading source' sensor' _ _ _) =
   where isAlphaAscii c = isAscii c && isAlphaNum c
         validIdentifier = T.all isAlphaAscii
 
-postToSensor :: Connection -> B.ByteString -> ActionM ()
+postToSensor :: Session -> B.ByteString -> ActionM ()
 postToSensor conn rawData = do
   time <- ST.liftAndCatchIO getCurrentTime
   case decodeReading rawData of
@@ -72,30 +81,39 @@ postToSensor conn rawData = do
               , timestamp = Just $ fromMaybe time $ timestamp reading
               }
 
-getSources :: Connection -> IO [Sensor]
-getSources conn =
+getSources :: Session -> IO [Sensor]
+getSources (Session conn) =
   query_ conn "SELECT DISTINCT source, sensor FROM reading"
 
-getReadings :: Connection -> T.Text -> T.Text -> IO [Reading]
-getReadings conn source' sensor' =
+getReadings :: Session -> T.Text -> T.Text -> IO [Reading]
+getReadings (Session conn) source' sensor' =
   queryNamed conn "SELECT source, sensor, timestamp, received_time, CAST(value as FLOAT) \
                   \FROM reading \
                   \WHERE source = :source AND sensor = :sensor \
                   \ORDER BY timestamp DESC"
   [":source" := source', ":sensor" := sensor']
 
-routes :: Connection -> ST.ScottyT T.Text IO ()
-routes conn = do
+validateSecret :: Maybe Secret -> ActionM ()
+validateSecret Nothing = raise "Invalid secret!"
+validateSecret (Just providedSecret) | providedSecret == apiKey = next
+                                     | otherwise = raise "Invalid secret!"
+
+routes :: Session -> ST.ScottyT T.Text IO ()
+routes session = do
+  matchAny (regex ".*") $ do
+    secret'' <- header "X-Secret"
+    ST.liftAndCatchIO $ putStrLn $ "Got secret " ++ show secret''
+    validateSecret secret''
   get "/source" $ do
-    sources <- ST.liftAndCatchIO $ getSources conn
+    sources <- ST.liftAndCatchIO $ getSources session
     json sources
   post "/source" $ do
     rawData <- body
-    postToSensor conn rawData
+    postToSensor session rawData
   get "/source/:name/:sensor" $ do
     source' <- param "name"
     sensor' <- param "sensor"
-    readings <- ST.liftAndCatchIO $ getReadings conn source' sensor'
+    readings <- ST.liftAndCatchIO $ getReadings session source' sensor'
     json readings
 
 tables :: [Query]
@@ -110,7 +128,7 @@ tables = [
 
 main :: IO ()
 main =
-  withConnection "readings.db"
-  (\conn -> do
-      mapM_ (execute_ conn) tables
-      scotty 3000 $ routes conn)
+  withConnection "readings.db" runServer
+  where runServer conn = do
+          mapM_ (execute_ conn) tables
+          scotty 3000 $ routes $ Session conn
