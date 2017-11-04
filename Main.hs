@@ -93,24 +93,26 @@ getReadings (Session conn) source' sensor' =
                   \ORDER BY timestamp DESC"
   [":source" := source', ":sensor" := sensor']
 
-validateSecret :: Maybe Secret -> ActionM ()
-validateSecret Nothing = raise "Invalid secret!"
-validateSecret (Just providedSecret) | providedSecret == apiKey = next
-                                     | otherwise = raise "Invalid secret!"
+validateSecret :: ST.ActionT T.Text IO ()
+validateSecret = do
+  h <- header "X-Secret"
+  case h of
+    Just provided | provided == apiKey -> return ()
+                  | otherwise -> raise "Invalid key!"
+    Nothing -> raise "No key!"
 
 routes :: Session -> ST.ScottyT T.Text IO ()
 routes session = do
-  matchAny (regex ".*") $ do
-    secret'' <- header "X-Secret"
-    ST.liftAndCatchIO $ putStrLn $ "Got secret " ++ show secret''
-    validateSecret secret''
   get "/source" $ do
+    validateSecret
     sources <- ST.liftAndCatchIO $ getSources session
     json sources
   post "/source" $ do
+    validateSecret
     rawData <- body
     postToSensor session rawData
   get "/source/:name/:sensor" $ do
+    validateSecret
     source' <- param "name"
     sensor' <- param "sensor"
     readings <- ST.liftAndCatchIO $ getReadings session source' sensor'
