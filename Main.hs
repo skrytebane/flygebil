@@ -68,19 +68,18 @@ validateIdentifiers r@(Reading source' sensor' _ _ _) =
 
 validateProvidedFields :: Reading -> Either T.Text Reading
 validateProvidedFields r@(Reading _ _ _ Nothing _) = Right r
-validateProvidedFields _ = Left "Don't set received time."
+validateProvidedFields _ = Left "No overrides of received time!"
 
 validateReading :: Reading -> Either T.Text Reading
 validateReading reading =
-  validateIdentifiers reading >>
-  validateProvidedFields reading >>
-  return reading
+  validateIdentifiers reading >>=
+  validateProvidedFields
 
 postToSensor :: Session -> Reading -> ActionM ()
-postToSensor conn reading = do
+postToSensor session reading = do
   time <- ST.liftAndCatchIO getCurrentTime
   ST.liftAndCatchIO $
-    insertReading conn $
+    insertReading session $
     reading { receivedTime = Just time
             , timestamp = Just $ fromMaybe time $ timestamp reading
             }
