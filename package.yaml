@@ -1,0 +1,63 @@
+name:                flygebil
+version:             0.1.0.0
+github:              "skrytebane/flygebil"
+license:             BSD3
+author:              "Johannes Grødem"
+maintainer:          "johs@grdm.no"
+copyright:           "2017, Johannes Grødem"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/skrytebane/flygebil#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- sqlite-simple
+- text
+- time
+- servant
+- servant-server
+- base-compat
+- mtl
+- aeson
+- aeson-compat
+- attoparsec
+- bytestring
+- string-conversions
+- http-media
+- wai
+- warp
+
+library:
+  source-dirs: src
+
+executables:
+  flygebil-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flygebil
+
+tests:
+  flygebil-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flygebil

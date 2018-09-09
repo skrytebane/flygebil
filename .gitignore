@@ -7,3 +7,5 @@ cabal.sandbox.config
 *.swp
 *.keter
 .ghci
+flygebil.cabal
+*~
