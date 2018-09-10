@@ -17,7 +17,7 @@ import           Database.SQLite.Simple
 import           Types
 
 getReadings :: Session -> T.Text -> IO [Reading]
-getReadings (Session conn) sensor' =
+getReadings (Session conn _) sensor' =
   queryNamed conn "SELECT sensor, timestamp, received_time, CAST(value as FLOAT) \
                   \FROM reading \
                   \WHERE sensor = :sensor \
@@ -25,7 +25,7 @@ getReadings (Session conn) sensor' =
   [":sensor" := sensor']
 
 insertReading :: Session -> Reading -> IO (Either T.Text Reading)
-insertReading (Session conn) r =
+insertReading (Session conn _) r =
   case validateIdentifiers r of
     Left e -> return $ Left e
     Right reading -> do
@@ -43,7 +43,7 @@ insertReading (Session conn) r =
       return $ Right reading'
 
 getSensors :: Session -> IO [Sensor]
-getSensors (Session conn) =
+getSensors (Session conn _) =
   query_ conn "SELECT DISTINCT sensor FROM reading"
 
 validateIdentifiers :: Reading -> Either T.Text Reading
@@ -54,7 +54,7 @@ validateIdentifiers r@(Reading sensor' _ _ _) =
   where isValidIdChar c = isAscii c && (isAlphaNum c || c == '.')
 
 initializeTables :: Session -> IO ()
-initializeTables (Session conn) =
+initializeTables (Session conn _) =
   execute_ conn "CREATE TABLE IF NOT EXISTS reading\
                 \ (sensor TEXT NOT NULL,\
                 \ timestamp TIMESTAMP NOT NULL,\

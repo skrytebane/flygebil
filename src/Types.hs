@@ -9,8 +9,9 @@ import           Database.SQLite.Simple
 import           GHC.Generics
 
 -- Database session
-newtype Session = Session {
+data Session = Session {
   connection :: Connection
+  , secret   :: T.Text
   }
 
 

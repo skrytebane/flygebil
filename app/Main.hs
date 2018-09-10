@@ -13,6 +13,6 @@ main :: IO ()
 main =
   withConnection "readings.db"
   (\conn -> do
-      let session = Session conn
+      let session = Session conn "supersekrit"
       initializeTables session
       run 8081 $ app session)
