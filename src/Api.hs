@@ -59,7 +59,7 @@ debugServer = debug
     debug t =
       case t of
         Just t' -> return $ "Heisann, " `T.append` t' `T.append` "!"
-        Nothing -> return $ "Hoi!"
+        Nothing -> return "Hoi!"
 
 apiServer :: Session -> Server API
 apiServer session = sensorServer session :<|> debugServer
