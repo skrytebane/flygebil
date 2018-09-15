@@ -36,6 +36,8 @@ dependencies:
 - http-media
 - wai
 - warp
+- optparse-applicative
+- filepath
 
 library:
   source-dirs: src
