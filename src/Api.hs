@@ -31,7 +31,7 @@ sensorServer session@(Session _ secret) auth =
         checkAuthorization =
           case auth of
             Just s | s == secret -> return ()
-            _                    -> throwError err401
+            _                    -> throwError err403
 
         sensors :: Maybe T.Text -> Handler [Sensor]
         sensors _ = do
