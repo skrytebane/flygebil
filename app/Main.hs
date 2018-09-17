@@ -14,7 +14,8 @@ import           System.FilePath          ((<.>), (</>))
 
 import           Api                      (app)
 import           Storage                  (initializeTables)
-import           Types                    (Session (..))
+import           Types                    (Session (Session), User (User),
+                                           createUserDB)
 
 data CmdArgs = CmdArgs
   {
@@ -74,8 +75,10 @@ main = do
         (putStrLn $ "Starting flygebil on http://" ++ host' ++ ":" ++ show port')
         defaultSettings
 
+  let userDb = createUserDB [("flygebil", User "flygebil" secret'')]
+
   withConnection (directory' </> "readings" <.> "sqlite3")
     (\conn -> do
         let session = Session conn secret''
         initializeTables session
-        runSettings settings $ app session)
+        runSettings settings $ app userDb session)

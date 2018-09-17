@@ -3,6 +3,7 @@
 module Types where
 
 import           Data.Aeson             (FromJSON, ToJSON)
+import qualified Data.Map               as Map
 import qualified Data.Text.Lazy         as T
 import           Data.Time.Clock
 import           Database.SQLite.Simple
@@ -40,3 +41,21 @@ instance ToJSON Reading
 instance FromJSON Reading
 instance FromRow Reading where
   fromRow = Reading <$> field <*> field <*> field <*> field
+
+
+-- User (for basic auth)
+type Username = T.Text
+type Password = T.Text
+
+data User = User
+  { user :: Username
+  , pass :: Password
+  } deriving (Eq, Show)
+
+type UserDB = Map.Map Username User
+
+createUserDB :: [(Username, User)] -> UserDB
+createUserDB = Map.fromList
+
+userLookup :: Username -> UserDB -> Maybe User
+userLookup = Map.lookup

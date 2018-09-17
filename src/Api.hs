@@ -10,11 +10,10 @@ import qualified Data.Text.Lazy          as T
 import           Data.Time.Clock         (getCurrentTime)
 import           Servant
 
-
 import           Storage
 import           Types
 
-type SensorAPI = "sensor" :> Header "Authorization" T.Text :>
+type SensorAPI = BasicAuth "flygebil" User :> "sensor" :>
            (Get '[JSON] [Sensor]
             :<|> ReqBody '[JSON] Reading :> Post '[JSON] Reading
             :<|> Capture "name" SensorName :> Get '[JSON] [Reading])
@@ -24,32 +23,21 @@ type DebugAPI = "debug" :> Header "Debug" T.Text :> Get '[JSON] T.Text
 type API = SensorAPI :<|> DebugAPI
 
 sensorServer :: Session -> Server SensorAPI
-sensorServer session@(Session _ secret) auth =
-  sensors auth :<|> newReading auth :<|> readings auth
+sensorServer session@(Session _ secret) user =
+  sensors user :<|> newReading user :<|> readings user
 
-  where checkAuthorization :: Handler ()
-        checkAuthorization =
-          case auth of
-            Just s | s == secret -> return ()
-            _                    -> throwError err403
+  where sensors :: User -> Handler [Sensor]
+        sensors _ = liftIO $ getSensors session
 
-        sensors :: Maybe T.Text -> Handler [Sensor]
-        sensors _ = do
-          checkAuthorization
-          liftIO $ getSensors session
-
-        newReading :: Maybe T.Text -> Reading -> Handler Reading
+        newReading :: User -> Reading -> Handler Reading
         newReading _ reading = do
-          checkAuthorization
           r <- liftIO $ insertReading session reading
           case r of
             Left s         -> throwError err400 { errReasonPhrase = convertString s }
             Right reading' -> return reading'
 
-        readings :: Maybe T.Text -> SensorName -> Handler [Reading]
-        readings _ name = do
-          checkAuthorization
-          liftIO $ getReadings session name
+        readings :: User -> SensorName -> Handler [Reading]
+        readings _ name = liftIO $ getReadings session name
 
 debugServer :: Server DebugAPI
 debugServer = debug
@@ -67,5 +55,17 @@ apiServer session = sensorServer session :<|> debugServer
 serverAPI :: Proxy API
 serverAPI = Proxy
 
-app :: Session -> Application
-app session = serve serverAPI $ apiServer session
+checkBasicAuth :: UserDB -> BasicAuthCheck User
+checkBasicAuth db = BasicAuthCheck $ \basicAuthData ->
+  let username = convertString $ basicAuthUsername basicAuthData
+      password = convertString $ basicAuthPassword basicAuthData
+  in
+    case userLookup username db of
+      Nothing -> return NoSuchUser
+      Just u -> if pass u == password
+                then return (Authorized u)
+                else return BadPassword
+
+app :: UserDB -> Session -> Application
+app db session = serveWithContext serverAPI ctx (apiServer session)
+  where ctx = checkBasicAuth db :. EmptyContext

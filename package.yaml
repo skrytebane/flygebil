@@ -38,6 +38,7 @@ dependencies:
 - warp
 - optparse-applicative
 - filepath
+- containers
 
 library:
   source-dirs: src
