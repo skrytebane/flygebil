@@ -55,8 +55,11 @@ validateIdentifiers r@(Reading sensor' _ _ _) =
 
 initializeTables :: Session -> IO ()
 initializeTables (Session conn _) =
-  execute_ conn "CREATE TABLE IF NOT EXISTS reading\
-                \ (sensor TEXT NOT NULL,\
-                \ timestamp TIMESTAMP NOT NULL,\
-                \ received_time TIMESTAMP NOT NULL,\
-                \ value NUMBER NOT NULL)"
+  mapM_ (execute_ conn) ["CREATE TABLE IF NOT EXISTS reading\
+                         \ (sensor TEXT NOT NULL,\
+                         \ timestamp TIMESTAMP NOT NULL,\
+                         \ received_time TIMESTAMP NOT NULL,\
+                         \ value NUMBER NOT NULL)"
+                        , "CREATE INDEX sensor_idx ON reading (sensor)"
+                        , "CREATE INDEX time_idx ON reading (timestamp)"
+                        ]
