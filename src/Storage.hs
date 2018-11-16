@@ -51,7 +51,7 @@ validateIdentifiers r@(Reading sensor' _ _ _) =
   if T.all isValidIdChar sensor'
   then Right r
   else Left "Invalid identifier!"
-  where isValidIdChar c = isAscii c && (isAlphaNum c || c == '.')
+  where isValidIdChar c = isAscii c && (isAlphaNum c || c == '.' || c == '_')
 
 initializeTables :: Session -> IO ()
 initializeTables (Session conn _) =
