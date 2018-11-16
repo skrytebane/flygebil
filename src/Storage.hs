@@ -60,6 +60,6 @@ initializeTables (Session conn _) =
                          \ timestamp TIMESTAMP NOT NULL,\
                          \ received_time TIMESTAMP NOT NULL,\
                          \ value NUMBER NOT NULL)"
-                        , "CREATE INDEX sensor_idx ON reading (sensor)"
-                        , "CREATE INDEX time_idx ON reading (timestamp)"
+                        , "CREATE INDEX IF NOT EXISTS sensor_idx ON reading (sensor)"
+                        , "CREATE INDEX IF NOT EXISTS time_idx ON reading (timestamp)"
                         ]
