@@ -21,7 +21,8 @@ getReadings (Session conn _) sensor' =
   queryNamed conn "SELECT sensor, timestamp, received_time, CAST(value as FLOAT) \
                   \FROM reading \
                   \WHERE sensor = :sensor \
-                  \ORDER BY timestamp DESC"
+                  \ORDER BY timestamp DESC \
+                  \LIMIT 10800"
   [":sensor" := sensor']
 
 insertReading :: Session -> Reading -> IO (Either T.Text Reading)
