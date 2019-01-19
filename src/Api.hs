@@ -15,7 +15,7 @@ import           Types
 
 type SensorAPI = BasicAuth "flygebil" User :> "sensor" :>
            (Get '[JSON] [Sensor]
-            :<|> ReqBody '[JSON] Reading :> Post '[JSON] Reading
+            :<|> ReqBody '[JSON] [Reading] :> Post '[JSON] [Reading]
             :<|> Capture "name" SensorName :> Get '[JSON] [Reading])
 
 type DebugAPI = "debug" :> Header "Debug" T.Text :> Get '[JSON] T.Text
@@ -29,12 +29,12 @@ sensorServer session@(Session _ secret) user =
   where sensors :: User -> Handler [Sensor]
         sensors _ = liftIO $ getSensors session
 
-        newReading :: User -> Reading -> Handler Reading
-        newReading _ reading = do
-          r <- liftIO $ insertReading session reading
+        newReading :: User -> [Reading] -> Handler [Reading]
+        newReading _ readings = do
+          r <- liftIO $ insertReadings session readings
           case r of
             Left s         -> throwError err400 { errReasonPhrase = convertString s }
-            Right reading' -> return reading'
+            Right readings' -> return readings'
 
         readings :: User -> SensorName -> Handler [Reading]
         readings _ name = liftIO $ getReadings session name

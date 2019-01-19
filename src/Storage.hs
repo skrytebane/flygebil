@@ -2,13 +2,14 @@
 
 module Storage
   ( getReadings
-  , insertReading
+  , insertReadings
   , getSensors
   , initializeTables
   )
 where
 
 import           Data.Char              (isAlphaNum, isAscii)
+import           Data.Either            (lefts)
 import           Data.Maybe             (fromMaybe)
 import qualified Data.Text.Lazy         as T
 import           Data.Time.Clock        (getCurrentTime)
@@ -25,23 +26,34 @@ getReadings (Session conn _) sensor' =
                   \LIMIT 10800"
   [":sensor" := sensor']
 
-insertReading :: Session -> Reading -> IO (Either T.Text Reading)
-insertReading (Session conn _) r =
-  case validateIdentifiers r of
+insertReadings :: Session -> [Reading] -> IO (Either T.Text [Reading])
+insertReadings s@(Session conn _) rs = do
+  case validateInputs of
     Left e -> return $ Left e
-    Right reading -> do
+    Right _ -> do
       time <- getCurrentTime
-      let reading'@(Reading sensor' timestamp' receivedTime' value')
-            = reading { receivedTime = Just time
-                      , timestamp = Just $ fromMaybe time $ timestamp r }
+      let readings = timedReading time <$> rs
+      withTransaction conn $ mapM_ insert readings
+      return $ Right readings
+
+  where
+    validateInputs =
+      case lefts $ validateIdentifiers <$> rs of
+        []    -> Right rs
+        i : _ -> Left i
+
+    timedReading t r =
+      r { receivedTime = Just t
+        , timestamp = Just $ fromMaybe t $ timestamp r }
+
+    insert (Reading sensor' timestamp' receivedTime' value') =
       executeNamed conn "INSERT INTO reading (sensor, timestamp, received_time, value) \
                         \VALUES (:sensor, :timestamp, :received_time, :value) "
-        [ ":sensor" := sensor'
-        , ":value" := value'
-        , ":timestamp" := timestamp'
-        , ":received_time" := receivedTime'
-        ]
-      return $ Right reading'
+      [ ":sensor" := sensor'
+      , ":value" := value'
+      , ":timestamp" := timestamp'
+      , ":received_time" := receivedTime'
+      ]
 
 getSensors :: Session -> IO [Sensor]
 getSensors (Session conn _) =
