@@ -15,32 +15,42 @@ data Session = Session {
   , secret   :: T.Text
   }
 
+-- Sensor platforms
+type PlatformName = T.Text
 
--- Sensor names
-type SensorName = T.Text
-
-newtype Sensor = Sensor
-  { name :: SensorName
+data Platform = Platform
+  {
+    name        :: PlatformName
+  , description :: Maybe T.Text
+  , location    :: Maybe T.Text
   } deriving (Eq, Show, Generic)
 
-instance ToJSON Sensor
-instance FromJSON Sensor
-instance FromRow Sensor where
-  fromRow = Sensor <$> field
+instance ToJSON Platform
+instance FromJSON Platform
+instance FromRow Platform where
+  fromRow = Platform <$> field <*> field <*> field
 
 
--- Individual sensor readings
+-- Sensor readings
 data Reading = Reading {
-  sensorName     :: SensorName
-  , timestamp    :: Maybe UTCTime
-  , receivedTime :: Maybe UTCTime
-  , value        :: Double
+  platform        :: PlatformName
+  , timestamp     :: UTCTime
+  , receivedTime  :: Maybe UTCTime
+  , acceleration  :: Double
+  , accelerationX :: Int
+  , accelerationY :: Int
+  , accelerationZ :: Int
+  , temperature   :: Double
+  , pressure      :: Double
+  , humidity      :: Double
+  , battery       :: Int
   } deriving (Eq, Show, Generic)
 
 instance ToJSON Reading
 instance FromJSON Reading
 instance FromRow Reading where
-  fromRow = Reading <$> field <*> field <*> field <*> field
+  fromRow = Reading <$> field <*> field <*> field <*> field <*> field
+    <*> field <*> field <*> field <*> field <*> field <*> field
 
 
 -- User (for basic auth)

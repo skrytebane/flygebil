@@ -5,39 +5,39 @@
 module Api (app) where
 
 import           Control.Monad.Reader
+import           Data.Maybe              (fromMaybe)
 import           Data.String.Conversions (convertString)
 import qualified Data.Text.Lazy          as T
-import           Data.Time.Clock         (getCurrentTime)
 import           Servant
 
 import           Storage
 import           Types
 
-type SensorAPI = BasicAuth "flygebil" User :> "sensor" :>
-           (Get '[JSON] [Sensor]
+type PlatformAPI = BasicAuth "flygebil" User :> "platform" :>
+           (Get '[JSON] [Platform]
             :<|> ReqBody '[JSON] [Reading] :> Post '[JSON] [Reading]
-            :<|> Capture "name" SensorName :> Get '[JSON] [Reading])
+            :<|> Capture "name" PlatformName :> QueryParam "limit" Int :> Get '[JSON] [Reading])
 
 type DebugAPI = "debug" :> Header "Debug" T.Text :> Get '[JSON] T.Text
 
-type API = SensorAPI :<|> DebugAPI
+type API = PlatformAPI :<|> DebugAPI
 
-sensorServer :: Session -> Server SensorAPI
-sensorServer session@(Session _ secret) user =
-  sensors user :<|> newReading user :<|> readings user
+sensorServer :: Session -> Server PlatformAPI
+sensorServer session user' =
+  sensors user' :<|> newReading user' :<|> readings user'
 
-  where sensors :: User -> Handler [Sensor]
-        sensors _ = liftIO $ getSensors session
+  where sensors :: User -> Handler [Platform]
+        sensors _ = liftIO $ getPlatforms session
 
         newReading :: User -> [Reading] -> Handler [Reading]
-        newReading _ readings = do
-          r <- liftIO $ insertReadings session readings
+        newReading _ readings' = do
+          r <- liftIO $ insertReadings session readings'
           case r of
             Left s         -> throwError err400 { errReasonPhrase = convertString s }
-            Right readings' -> return readings'
+            Right readings'' -> return readings''
 
-        readings :: User -> SensorName -> Handler [Reading]
-        readings _ name = liftIO $ getReadings session name
+        readings :: User -> PlatformName -> Maybe Int -> Handler [Reading]
+        readings _ name' limit = liftIO $ getReadings session name' (fromMaybe 100 limit)
 
 debugServer :: Server DebugAPI
 debugServer = debug
