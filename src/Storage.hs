@@ -53,7 +53,10 @@ insertReadings s@(Session conn _) rs = do
         []    -> Right rs
         i : _ -> Left i
 
-    timedReading t r = r { receivedTime = Just t }
+    timedReading t r =
+      case receivedTime r of
+        Nothing -> r { receivedTime = Just t }
+        Just _  -> r
 
     insert (Reading platform' timestamp' receivedTime' acceleration' accelerationX'
             accelerationY' accelerationZ' temperature' pressure' humidity' battery') =

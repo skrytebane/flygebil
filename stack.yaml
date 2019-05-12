@@ -3,5 +3,8 @@ resolver: lts-13.3
 packages:
   - .
 
+extra-deps:
+  - logging-3.0.5
+
 docker:
   enable: true

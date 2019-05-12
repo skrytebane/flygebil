@@ -4,7 +4,7 @@ github:              "skrytebane/flygebil"
 license:             BSD3
 author:              "Johannes Grødem"
 maintainer:          "johs@grdm.no"
-copyright:           "2017, Johannes Grødem"
+copyright:           "2019, Johannes Grødem"
 
 extra-source-files:
 - README.md
@@ -39,6 +39,7 @@ dependencies:
 - optparse-applicative
 - filepath
 - containers
+- logging
 
 library:
   source-dirs: src
